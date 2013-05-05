@@ -273,7 +273,7 @@ class DSS_Scraper():
         response = self.module_display("DefineVolumeReplicationTask", "1.5.2")
         self.br.select_form(nr=0)
         self.remove_control_from_active_form(whitelist = ["DefineVolumeReplicationTask_send", "data[mirror_server_ip]", "data[source_lv_shortname]",
-                "data[destination_lv_shortname]", "data[task_name]", "dat[bandwidth]", "jump", "data[source_uid]", "data[destination_uid]"])
+                "data[destination_lv_shortname]", "data[task_name]", "data[bandwidth]", "jump", "data[source_uid]", "data[destination_uid]"])
         # Build a dictionary of lvnames and uids
         src_volumes = dict()
         dst_volumes = dict()
