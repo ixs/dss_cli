@@ -36,7 +36,7 @@ class DSS_Scraper():
         self.server = server
         self.password = password
         self.debug = debug
-        self.allowed_cmds = [ "volume_replication_remove", "volume_replication_mode", "create_volume_replication_task" ]
+        self.allowed_cmds = [ "volume_replication_remove", "volume_replication_mode", "create_volume_replication_task", "iscsi_target_access" ]
 
         # Logging
         if debug == True:
@@ -119,9 +119,12 @@ class DSS_Scraper():
         self.br.open("%s/XhrModuleLoader.php?opt=%s&id=%s&__rand=%f" % (self.server, "list", id, random.random()))
         return self.parse_pageData(self.br.response().read())
 
-    def module_display(self, name, id):
+    def module_display(self, moduleName, id, **args):
         r"""Output the HTML code for an item on a module page"""
-        self.br.open("%s/XhrModuleLoader.php?opt=%s&_moduleName=%s&id=%s&__rand=%s" % (self.server, "disp", name, id, random.random()))
+        if len(args) > 0:
+            self.br.open("%s/XhrModuleLoader.php?opt=%s&_moduleName=%s&id=%s&%s&__rand=%s" % (self.server, "disp", moduleName, id, urllib.urlencode(args), random.random()))
+        else:
+            self.br.open("%s/XhrModuleLoader.php?opt=%s&_moduleName=%s&id=%s&__rand=%s" % (self.server, "disp", moduleName, id, random.random()))
         return self.br.response().read()
 
     def tree_index(self, id):
@@ -295,6 +298,27 @@ class DSS_Scraper():
         self.br.form.new_control("hidden", "run_engine", { "value": "true"})
         self.br.submit()
 
+    def iscsi_target_access(self, target, allow = [], deny = []):
+        r"""Configure Target IP access
+        Usage: iscsi_target_access <target> [options]
+
+        This function allows you to configure IP addresses allowed and denied to access an iscsi target.
+
+        Optons:
+          -h, --help          show this help message and exit
+          -a IP, --allow=IP   The IP address or the network allowed access to the target.
+          -d IP, --deny=IP    The IP address or the network denied access to the target.
+
+        Multiple IPs or CIDR ranges can be separated by semicolon.
+        """
+        response = self.module_display("TargetIpAccess", "2.8.1", type = "target", label = target, name = target)
+        self.br.select_form(nr=0)
+        for rule in ("allow", "deny"):
+            if len(rule) > 1:
+                self.br.form[rule] = ";".join(locals()[rule])
+        self.br.form.new_control("hidden", "run_engine", { "value": "true"})
+        self.br.submit()
+
     def get_cmds(self):
         cmds = dict()
         for cmd in self.allowed_cmds:
@@ -322,6 +346,21 @@ class DSS_Scraper():
             return self.volume_replication_remove(args[1])
         elif cmd == "create_volume_replication_task":
             return self.create_volume_replication_task(args[1], args[2], args[3])
+        elif cmd == "iscsi_target_access":
+            allow = ""
+            deny = ""
+            if "-a" in args:
+                allow = args[(args.index("-a") + 1)]
+            elif "--allow" in args:
+                allow = args[(args.index("--allow") + 1)]
+            if "-d" in args:
+                deny = args[(args.index("-d") + 1)]
+            elif "--deny" in args:
+                deny = args[(args.index("--deny") + 1)]
+            if len(allow + deny) == 0:
+                raise ValueError("No IP addresses given")
+            else:
+                self.iscsi_target_access(args[1], allow.split(";"), deny.split(";"))
         else:
             raise ValueError("Unknown function called.")
 
@@ -329,7 +368,7 @@ def test():
     server = "https://192.168.220.1"
     password = "admin"
 
-    filer1 = DSS_Scraper(server, password)
+    filer1 = DSS_Scraper(server, password, debug = True)
     filer1.login()
     filer1.logout()
 

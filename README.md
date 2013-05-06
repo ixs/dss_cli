@@ -46,6 +46,7 @@ for automation/scripting:
    * create_volume_replication_task - After the volumes for replication have
      been created, a replication task needs to be created to configure the
      actual synchronisation of data.
+   * iscsi_target_access - Configure IP Access rules for iSCSI targets.
 
 LICENSE
 =======
