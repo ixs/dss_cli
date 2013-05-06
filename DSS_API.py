@@ -36,7 +36,10 @@ class DSS_API():
         self.client.connect(*self.connect_params)
         stdin, stdout, stderr = self.client.exec_command(cmdstr)
         stdout = stdout.read()
+        stderr = stderr.read()
         self.client.close()
+        if len(stderr) > 0:
+          raise RuntimeError(stderr)
         return stdout
 
     def get_cmds(self):
