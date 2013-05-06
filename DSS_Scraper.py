@@ -22,6 +22,7 @@ import urlparse
 import HTMLParser
 import logging
 import operator
+import pprint
 import random
 import re
 import sys
@@ -36,7 +37,7 @@ class DSS_Scraper():
         self.server = server
         self.password = password
         self.debug = debug
-        self.allowed_cmds = [ "volume_replication_remove", "volume_replication_mode", "create_volume_replication_task", "iscsi_target_access" ]
+        self.allowed_cmds = [ "volume_replication_remove", "volume_replication_mode", "create_volume_replication_task", "iscsi_target_access", "iscsi_target_remove" ]
 
         # Logging
         if debug == True:
@@ -134,7 +135,7 @@ class DSS_Scraper():
 
     def tree_items(self, datalink):
         r"""Parse the tree items included in a tree pane referenced by a dataLink URL"""
-        self.br.open("%s/%s?text=1&_rn=%s" % (server, datalink, random.random()))
+        self.br.open("%s/%s?text=1&_rn=%s" % (self.server, datalink, random.random()))
         ret = dict()
         for line in self.br.response().read().split('\n'):
             if line.startswith("ob = new WebFXTreeItem("):
@@ -270,9 +271,9 @@ class DSS_Scraper():
         Options:
           -h, --help     show this help message and exit
         """
-#       Reload not needed, form comes pre-filled
-#        self.br.open("%s/status.php?%s", self.server, urllib.urlencode({ "status": "replication_remote_lv", "opt_param": "scan", "local_lv_size": 1, "local_lv_type": "b",
-#                "id": "DefineVolumeReplicationTask_destination_volume_id, "btn1": "DefineVolumeReplicationTask_reload", "btn2": "DefineVolumeReplicationTask_create"))
+        # Reload not needed, form comes pre-filled
+        # self.br.open("%s/status.php?%s", self.server, urllib.urlencode({ "status": "replication_remote_lv", "opt_param": "scan", "local_lv_size": 1, "local_lv_type": "b",
+        #         "id": "DefineVolumeReplicationTask_destination_volume_id, "btn1": "DefineVolumeReplicationTask_reload", "btn2": "DefineVolumeReplicationTask_create"))
         response = self.module_display("DefineVolumeReplicationTask", "1.5.2")
         self.br.select_form(nr=0)
         self.remove_control_from_active_form(whitelist = ["DefineVolumeReplicationTask_send", "data[mirror_server_ip]", "data[source_lv_shortname]",
@@ -319,6 +320,29 @@ class DSS_Scraper():
         self.br.form.new_control("hidden", "run_engine", { "value": "true"})
         self.br.submit()
 
+    def iscsi_target_remove(self, target):
+        r"""Remove an existing iSCSI target
+        Usage: iscsi_target_remove <target>
+
+        This function removes the existing iSCSI target named <target>
+
+        Optons:
+          -h, --help          show this help message and exit
+        """
+        tree_index = self.tree_index('2.8')
+        tree_items = self.tree_items(tree_index["targets"])
+        if target not in tree_items:
+            raise ValueError("Target %s not found" % (target))
+        self.module_display("TargetRemove", "2.8.1", type = "target", label = tree_items[target]["label"], name = target)
+        self.br.select_form(nr=0)
+        self.br.form.new_control("hidden", "run_engine", { "value": "true"})
+        self.br.submit()
+        #self.br.form = mechanize._form.ParseString("", "http://%s/postEvent.php" % (self.server))[0]
+        #self.br.form.method = "POST"
+        #self.br.form.new_control("hidden", "type", {"value": "cache"})
+        #self.br.form.new_control("hidden", "event", {"value": "lv_disks_change"})
+        #self.br.submit()
+
     def get_cmds(self):
         cmds = dict()
         for cmd in self.allowed_cmds:
@@ -344,6 +368,8 @@ class DSS_Scraper():
             return self.volume_replication_mode(args[1], args[2], clear_metadata=cm)
         elif cmd == "volume_replication_remove":
             return self.volume_replication_remove(args[1])
+        elif cmd == "iscsi_target_remove":
+            return self.iscsi_target_remove(args[1])
         elif cmd == "create_volume_replication_task":
             return self.create_volume_replication_task(args[1], args[2], args[3])
         elif cmd == "iscsi_target_access":

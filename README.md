@@ -47,6 +47,7 @@ for automation/scripting:
      been created, a replication task needs to be created to configure the
      actual synchronisation of data.
    * iscsi_target_access - Configure IP Access rules for iSCSI targets.
+   * iscsi_target_remove - Remove an iSCSI target.
 
 LICENSE
 =======
