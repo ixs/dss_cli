@@ -37,7 +37,8 @@ class DSS_Scraper():
         self.server = server
         self.password = password
         self.debug = debug
-        self.allowed_cmds = [ "volume_replication_remove", "volume_replication_mode", "create_volume_replication_task", "iscsi_target_access", "iscsi_target_remove" ]
+        self.allowed_cmds = [ "volume_replication_remove", "volume_replication_mode", "volume_replication_task_create", "iscsi_target_access", "iscsi_target_remove",
+                "failover_task", "nas_share_toggle_smb", "volume_replication_task_stop", "volume_replication_task_remove", "lv_remove"]
 
         # Logging
         if debug == True:
@@ -135,7 +136,7 @@ class DSS_Scraper():
 
     def tree_items(self, datalink):
         r"""Parse the tree items included in a tree pane referenced by a dataLink URL"""
-        self.br.open("%s/%s?text=1&_rn=%s" % (self.server, datalink, random.random()))
+        self.br.open("%s/%s&text=1&_rn=%s" % (self.server, datalink, random.random()))
         ret = dict()
         for line in self.br.response().read().split('\n'):
             if line.startswith("ob = new WebFXTreeItem("):
@@ -151,7 +152,7 @@ class DSS_Scraper():
     def tree_list(self, items):
         r"""Return the JSON construct detailing the items on a tree page. This is similar to the module_list() function."""
         self.br.open("%s/XhrModuleLoader.php?opt=%s&%s&__rand=%s" % (self.server, "list", urllib.urlencode(items), random.random()))
-        return self.parse_pageData(filer1.br.response().read())
+        return self.parse_pageData(self.br.response().read())
 
 
     def tree_display(self, items):
@@ -261,9 +262,9 @@ class DSS_Scraper():
         self.br.form.new_control("hidden", "run_engine", { "value": "1" })
         self.br.submit()
 
-    def create_volume_replication_task(self, src_lv_name, dst_lv_name, task_name, bandwidth = 40):
+    def volume_replication_task_create(self, src_lv_name, dst_lv_name, task_name, bandwidth = 40):
         r"""Create a volume replication task
-        Usage: create_volume_replication_task <source lvname> <destination lvname> <task name>
+        Usage: volume_replication_task_create <source lvname> <destination lvname> <task name>
 
         This function allows you to create a volume replication task replicating a
         source to a destination volume.
@@ -298,6 +299,141 @@ class DSS_Scraper():
         self.br.form["data[destination_uid]"] = [dst_volumes[dst_lv_name]]
         self.br.form.new_control("hidden", "run_engine", { "value": "true"})
         self.br.submit()
+
+    def volume_replication_task_action(self, task_name, action):
+        response = self.module_display("ReplicationTasksManager", "1.5.2")
+        # Build a list of Tasks
+        self.soup = BeautifulSoup.BeautifulSoup(response)
+        tasks = list()
+        for elem in self.soup.findAll('td', {"class": "trow"}):
+            if elem.span != None:
+                tasks.append(elem.getText())
+        if task_name not in tasks or task_name == "failover_data":
+            raise ValueError("Invalid task name given.")
+        if action not in ("start", "stop", "remove"):
+            raise ValueError("Invalid action given.")
+        self.br.select_form(nr=0)
+        self.br.form.find_control("action_input").readonly = False
+        self.br.form.find_control("task").readonly = False
+        self.br.form.find_control("type").readonly = False
+        self.br.form["action_input"] = action
+        self.br.form["type"] = "VREP"
+        self.br.form["task"] = task_name
+        self.br.form.new_control("hidden", "run_engine", { "value": "true"})
+        self.br.submit()
+
+    def lv_remove(self, lv_name):
+        r"""Remove a logical volume
+        Usage: lv_remove <lv>
+
+        This function deletes a logical volume.
+
+        Options:
+          -h, --help     show this help message and exit
+        """
+        if lv_name[:2] != "lv":
+            raise ValueError("Doesn't look like a logical volume")
+        vg = lv_name[2:-2]
+        # Fetch the tree information
+        tree_index = self.tree_index('1.5')
+        tree_items = self.tree_items(tree_index["volumes"])
+        lvs = list()
+        for module in self.tree_list(tree_items[vg])["modules"]:
+            if module["name"] == "VolumeManager":
+                content = self.tree_display({ "_moduleName": module["name"], "id": module["pageId"], "name": vg, "uid": tree_items[vg]["uid"] })
+
+                # Build a dictionary containing lv-id and remove cmd
+                self.soup = BeautifulSoup.BeautifulSoup(content)
+                for elem in self.soup.findAll('td', {"class": "trowLeft fat"}):
+                    if elem.span != None:
+                        lvs.append([elem.getText()])
+                i = 0
+                for elem in self.soup.findAll('td', {"class": "trowRight"}):
+                    if elem.span != None and i < len(lvs):
+                        for attr in elem.span.img.attrs:
+                            if attr[0] == "onclick":
+                                lvs[i].append(re.split('[\(\)]', attr[1])[1][1:-1])
+                        i += 1
+                if ["failover_data"] in lvs:
+                    del lvs[lvs.index(["failover_data"])]
+                lvs = dict(lvs)
+
+                self.br.select_form(nr=0)
+                # Remove the controls not needed/wanted
+                self.remove_control_from_active_form(whitelist = ["VolumeManager_send", "data[uid]", "data[lv_name]", "data[snapshot_name]", "data[iscsi_volume_type]", "data[new_size]",
+                    "data[endAction]", "jump", "data[assign_lv]", "data[iscsitrgt]", "data[blocksize]", "data[initialize_level]"])
+                # Add
+                self.br.form.new_control("hidden", "data[action]", { "value": lvs[lv_name] })                
+                # Add the run_engine toggle
+                self.br.form.new_control("hidden", "run_engine", { "value": "true" })
+                self.br.form.fixup()
+                self.br.submit()
+
+    def volume_replication_task_stop(self, task_name):
+        r"""Stop a replication task
+        Usage: volume_replication_task_stop <task>
+
+        This function is able to stop a running volume replication task.
+
+        Options:
+          -h, --help     show this help message and exit
+        """
+        self.volume_replication_task_action(task_name, "stop")
+
+    def volume_replication_task_remove(self, task_name):
+        r"""Remove a replication task
+        Usage: volume_replication_task_remove <task>
+
+        This function is able to remove a volume replication task.
+
+        Options:
+          -h, --help     show this help message and exit
+        """
+        self.volume_replication_task_action(task_name, "remove")
+
+    def failover_task(self, task, state):
+        r"""Manage a failover task
+        Usage: failover_task <task> <state>
+
+        Remove a volume replication task from the failover setup.
+        This serves to include or exclude replicated volumes from the failover group.
+
+        <task> is a volume replication task_name
+        <state> is either enable or disable
+
+        Options:
+          -h, --help     show this help message and exit
+        """
+        response = self.module_display("ClusterTasks", "1.2.2")
+        self.br.select_form(nr=0)
+        tasks = list()
+        task_name = ""
+
+        if task == "disable":
+            selector = "ClusterTasks_moving_list_sel_shares_list"
+        elif task == "enable":
+            selector = "ClusterTasks_moving_list_ava_shares_list"
+        for control in self.br.form.controls:
+            if control.id == selector:
+                for item in control.items:
+                    tasks.append(item.name)
+                    if item.name.split(" ", 1)[1] == task:
+                        task_name = item.name
+        self.remove_control_from_active_form(whitelist = ["ClusterTasks_send", "user", "ClusterTasks_moving_list_ava_shares_listqu",
+                "ClusterTasks_moving_list_sel_shares_listqu", "selected_tasks", "jump"])
+        self.br.form.find_control("selected_tasks").readonly = False
+
+        if task == "disable":
+            current_tasks = self.br.form["selected_tasks"].split(";")
+            del current_tasks[current_tasks.index(task_name)]
+            self.br.form["selected_tasks"] = ";".join(current_tasks)
+        elif task == "enable":
+            current_tasks = self.br.form["selected_tasks"]
+            self.br.form["selected_tasks"] =  "%s;%s" % (current_tasks, task_name)
+
+        self.br.form.new_control("hidden", "run_engine", { "value": "true"})
+        self.br.submit()
+
 
     def iscsi_target_access(self, target, allow = [], deny = []):
         r"""Configure Target IP access
@@ -343,6 +479,31 @@ class DSS_Scraper():
         #self.br.form.new_control("hidden", "event", {"value": "lv_disks_change"})
         #self.br.submit()
 
+    def nas_share_toggle_smb(self, share, state):
+        r"""Enable or disable SMB support for a share
+        Usage: nas_share_toggle_smb <share> <state>
+
+        This function enables or disables SMB support for a given <share>.
+        <state> needs to be either "enabled" or "disable".
+
+        Optons:
+          -h, --help          show this help message and exit
+        """
+        tree_index = self.tree_index('1.6')
+        tree_items = self.tree_items(tree_index["shares"])
+        if share not in tree_items:
+            raise ValueError("Share %s not found" % (share))
+        self.module_display("ResourcesSmbSettings", "1.6.1", type = "share", name = share)
+        self.br.select_form(nr=0)
+        if state == "enabled":
+            self.br.form.find_control(name="smb").items[0].selected = True
+        elif state == "disabled":
+            self.br.form.find_control(name="smb").items[0].selected = False
+        else:
+            raise ValueError("State must be either \"enabled\" or \"disable\"")
+        self.br.form.new_control("hidden", "run_engine", { "value": "true"})
+        self.br.submit()
+
     def get_cmds(self):
         cmds = dict()
         for cmd in self.allowed_cmds:
@@ -368,10 +529,20 @@ class DSS_Scraper():
             return self.volume_replication_mode(args[1], args[2], clear_metadata=cm)
         elif cmd == "volume_replication_remove":
             return self.volume_replication_remove(args[1])
+        elif cmd == "lv_remove":
+            return self.lv_remove(args[1])
         elif cmd == "iscsi_target_remove":
             return self.iscsi_target_remove(args[1])
-        elif cmd == "create_volume_replication_task":
-            return self.create_volume_replication_task(args[1], args[2], args[3])
+        elif cmd == "failover_task":
+            self.activate_failover_task(args[1], args[2])
+        elif cmd == "nas_share_toggle_smb":
+            self.nas_share_toggle_smb(args[1], args[2])
+        elif cmd == "volume_replication_task_create":
+            return self.volume_replication_task_create(args[1], args[2], args[3])
+        elif cmd == "volume_replication_task_stop":
+            return self.volume_replication_task_stop(args[1])
+        elif cmd == "volume_replication_task_remove":
+            return self.volume_replication_task_remove(args[1])
         elif cmd == "iscsi_target_access":
             allow = ""
             deny = ""

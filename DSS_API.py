@@ -40,7 +40,7 @@ class DSS_API():
         self.client.close()
         if len(stderr) > 0:
           raise RuntimeError(stderr)
-        return stdout
+        return stdout[:-1]
 
     def get_cmds(self):
     	self.commands = dict()

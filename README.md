@@ -35,19 +35,37 @@ simulating a web-browser in order to complement the offered API. This way
 the following tasks not available through the regular API are now available
 for automation/scripting:
 
-   * volume_replication_remove - While the regular API offers the ability to
-     add replication to an existing volume it is unable to remove the
-     replication flag again. While replication is enabled, a volume cannot be
-     removed.
+   * failover_task - Manage failover tasks/volumes. All replicated volumes
+     on a DSS filer are available for failover services on a virtual IP but
+     need to be enabled. This function allows to do this.
+
+   * iscsi_target_access - Configure IP Access rules for iSCSI targets.
+
+   * iscsi_target_remove - Remove the iSCSI target declaration.
+
+   * lv_remove - Remove an (unused) logical volume from the storage server.
+
+   * nas_share_toggle_smb - Enable or disable SMB functionality for a share.
+
    * volume_replication_mode - Volumes created through the web interface of
      through the API are by default created as replication sources. Before
      replication can be enabled in a failover configuration, the secondary
      volume needs to be configured as a replication destination.
-   * create_volume_replication_task - After the volumes for replication have
+
+   * volume_replication_remove - While the regular API offers the ability to
+     add replication to an existing volume it is unable to remove the
+     replication flag again. While replication is enabled, a volume cannot be
+     removed.
+
+   * volume_replication_task_create - After the volumes for replication have
      been created, a replication task needs to be created to configure the
      actual synchronisation of data.
-   * iscsi_target_access - Configure IP Access rules for iSCSI targets.
-   * iscsi_target_remove - Remove an iSCSI target.
+
+   * volume_replication_task_remove - Remove a stopped volume replication
+     task.
+
+   * volume_replication_task_stop - Stop a running volume replication task.
+
 
 LICENSE
 =======
