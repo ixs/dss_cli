@@ -1,7 +1,10 @@
 USAGE Examples
 ==============
 
-Get a list of all supported commands
+
+Supported commands
+------------------
+
 ```
 $ ./dss_cli -l filer1
 build                     - Lists and sets default build.
@@ -72,6 +75,38 @@ volume_status             - Displays storage info.
 ```
 
 
+Create failover enabled iSCSI volume on two filers:
+---------------------------------------------------
+
+$  ./dss_cli filer1 create_iscsilv arc_vol_000 4800 blockio
+lvarc_vol_00000
+
+$ ./dss_cli filer2 create_iscsilv arc_vol_000 4800 blockio
+lvarc_vol_00000
+
+$ ./dss_cli filer1 volume_replication add lvarc_vol_00000
+
+$ ./dss_cli filer2 volume_replication add lvarc_vol_00000
+
+$ ./dss_cli filer1 volume_replication_task_create lvarc_vol_00000 lvarc_vol_00000 failover_iscsi_phoenix
+
+$ ./dss_cli filer1 task --start VREP failover_iscsi_phoenix
+
+$ ./dss_cli filer1 iscsi_target_create phoenix
+
+$ ./dss_cli filer2 iscsi_target_create phoenix
+
+$ ./dss_cli filer1 iscsi_target_assign phoenix lvarc_vol_00000
+lvarc_vol_00000:phoenix:0:wt:Dgp5VLni08UGb5W5
+
+$ ./dss_cli filer2 iscsi_target_assign phoenix lvarc_vol_00000 -s Dgp5VLni08UGb5W5
+lvarc_vol_00000:phoenix:0:wt:Dgp5VLni08UGb5W5
+
+$ ./dss_cli filer1 failover_task failover_iscsi_phoenix enable
+
+$ ./dss_cli filer1 failover --start
+
+
 Create failover-enabled NAS volume on two filers
 ------------------------------------------------
 
@@ -104,8 +139,6 @@ $ ./dss_cli filer1 nas_share_access_nfs nas_users_www on
 $ ./dss_cli filer1 failover_task failover_nas_www enable
 
 $ ./dss_cli filer1 failover --start
-
-
 
 Delete failover-enabled NAS volume on two filers
 ------------------------------------------------

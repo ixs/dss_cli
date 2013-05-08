@@ -276,6 +276,12 @@ class DSS_Scraper():
         # self.br.open("%s/status.php?%s", self.server, urllib.urlencode({ "status": "replication_remote_lv", "opt_param": "scan", "local_lv_size": 1, "local_lv_type": "b",
         #         "id": "DefineVolumeReplicationTask_destination_volume_id, "btn1": "DefineVolumeReplicationTask_reload", "btn2": "DefineVolumeReplicationTask_create"))
         response = self.module_display("DefineVolumeReplicationTask", "1.5.2")
+        self.soup = BeautifulSoup.BeautifulSoup(response)
+        # Check if we have an error message from the server.
+        try:
+            raise SystemError(self.soup.find("div", { "class": "messageBody" }).getText())
+        except AttributeError:
+            pass
         self.br.select_form(nr=0)
         self.remove_control_from_active_form(whitelist = ["DefineVolumeReplicationTask_send", "data[mirror_server_ip]", "data[source_lv_shortname]",
                 "data[destination_lv_shortname]", "data[task_name]", "data[bandwidth]", "jump", "data[source_uid]", "data[destination_uid]"])
@@ -296,7 +302,10 @@ class DSS_Scraper():
         self.br.form["data[task_name]"] = task_name
         self.br.form["data[bandwidth]"] = str(bandwidth)
         self.br.form["data[source_uid]"] = [src_volumes[src_lv_name]]
-        self.br.form["data[destination_uid]"] = [dst_volumes[dst_lv_name]]
+        try:
+            self.br.form["data[destination_uid]"] = [dst_volumes[dst_lv_name]]
+        except KeyError:
+            raise SystemError("Failover system does not have specified target destination.")
         self.br.form.new_control("hidden", "run_engine", { "value": "true"})
         self.br.submit()
 
@@ -409,10 +418,12 @@ class DSS_Scraper():
         tasks = list()
         task_name = ""
 
-        if task == "disable":
+        if state == "disable":
             selector = "ClusterTasks_moving_list_sel_shares_list"
-        elif task == "enable":
+        elif state == "enable":
             selector = "ClusterTasks_moving_list_ava_shares_list"
+        else:
+            raise ValueError("Incorrect state %s given." % (state))
         for control in self.br.form.controls:
             if control.id == selector:
                 for item in control.items:
@@ -423,14 +434,17 @@ class DSS_Scraper():
                 "ClusterTasks_moving_list_sel_shares_listqu", "selected_tasks", "jump"])
         self.br.form.find_control("selected_tasks").readonly = False
 
-        if task == "disable":
-            current_tasks = self.br.form["selected_tasks"].split(";")
+        current_tasks = self.br.form["selected_tasks"].split(";")
+        if state == "disable":
             del current_tasks[current_tasks.index(task_name)]
-            self.br.form["selected_tasks"] = ";".join(current_tasks)
-        elif task == "enable":
-            current_tasks = self.br.form["selected_tasks"]
-            self.br.form["selected_tasks"] =  "%s;%s" % (current_tasks, task_name)
-
+        elif state == "enable":
+            try:
+                # Delete empty item
+                del current_tasks[current_tasks.index("")]
+            except:
+                pass
+            current_tasks.append(task_name)
+        self.br.form["selected_tasks"] = ";".join(current_tasks)
         self.br.form.new_control("hidden", "run_engine", { "value": "true"})
         self.br.submit()
 
@@ -534,7 +548,7 @@ class DSS_Scraper():
         elif cmd == "iscsi_target_remove":
             return self.iscsi_target_remove(args[1])
         elif cmd == "failover_task":
-            self.activate_failover_task(args[1], args[2])
+            self.failover_task(args[1], args[2])
         elif cmd == "nas_share_toggle_smb":
             self.nas_share_toggle_smb(args[1], args[2])
         elif cmd == "volume_replication_task_create":
