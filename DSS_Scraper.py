@@ -541,42 +541,14 @@ class DSS_Scraper():
             else:
                 cm = False
             return self.volume_replication_mode(args[1], args[2], clear_metadata=cm)
-        elif cmd == "volume_replication_remove":
-            return self.volume_replication_remove(args[1])
-        elif cmd == "lv_remove":
-            return self.lv_remove(args[1])
-        elif cmd == "iscsi_target_remove":
-            return self.iscsi_target_remove(args[1])
-        elif cmd == "failover_task":
-            self.failover_task(args[1], args[2])
-        elif cmd == "nas_share_toggle_smb":
-            self.nas_share_toggle_smb(args[1], args[2])
-        elif cmd == "volume_replication_task_create":
-            return self.volume_replication_task_create(args[1], args[2], args[3])
-        elif cmd == "volume_replication_task_stop":
-            return self.volume_replication_task_stop(args[1])
-        elif cmd == "volume_replication_task_remove":
-            return self.volume_replication_task_remove(args[1])
-        elif cmd == "iscsi_target_access":
-            allow = ""
-            deny = ""
-            if "-a" in args:
-                allow = args[(args.index("-a") + 1)]
-            elif "--allow" in args:
-                allow = args[(args.index("--allow") + 1)]
-            if "-d" in args:
-                deny = args[(args.index("-d") + 1)]
-            elif "--deny" in args:
-                deny = args[(args.index("--deny") + 1)]
-            if len(allow + deny) == 0:
-                raise ValueError("No IP addresses given")
-            else:
-                self.iscsi_target_access(args[1], allow.split(";"), deny.split(";"))
+        elif cmd in allowed_cmds:
+                getattr(self, cmd)(*args)
         else:
             raise ValueError("Unknown function called.")
 
+
 def test():
-    server = "https://192.168.220.1"
+    server = "https://172.16.10.68"
     password = "admin"
 
     filer1 = DSS_Scraper(server, password, debug = True)
