@@ -130,8 +130,6 @@ $ ./dss_cli filer1 nas_share_create "nas_users_www" lvfiler1_vol00001
 
 $ ./dss_cli filer1 nas_share_toggle_smb nas_users_www disabled
 
-$ ./dss_cli filer2 nas_share_toggle_smb nas_users_www disabled
-
 $ ./dss_cli filer1 failover --stop
 
 $ ./dss_cli filer1 nas_share_access_nfs nas_users_www on

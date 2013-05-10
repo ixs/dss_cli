@@ -38,7 +38,7 @@ class DSS_Scraper():
         self.password = password
         self.debug = debug
         self.allowed_cmds = [ "volume_replication_remove", "volume_replication_mode", "volume_replication_task_create", "iscsi_target_access", "iscsi_target_remove",
-                "failover_task", "nas_share_toggle_smb", "volume_replication_task_stop", "volume_replication_task_remove", "lv_remove"]
+                "failover_task", "nas_share_toggle_smb", "volume_replication_task_stop", "volume_replication_task_remove", "volume_replication_task_status", "lv_remove"]
 
         # Logging
         if debug == True:
@@ -264,7 +264,7 @@ class DSS_Scraper():
 
     def volume_replication_task_create(self, src_lv_name, dst_lv_name, task_name, bandwidth = 40):
         r"""Create a volume replication task
-        Usage: volume_replication_task_create <source lvname> <destination lvname> <task name>
+        Usage: volume_replication_task_create <source lvname> <destination lvname> <task name> [bandwidth]
 
         This function allows you to create a volume replication task replicating a
         source to a destination volume.
@@ -400,6 +400,29 @@ class DSS_Scraper():
         """
         self.volume_replication_task_action(task_name, "remove")
 
+    def volume_replication_task_status(self, task_name):
+        r"""Status of a replication task
+        Usage: volume_replication_task_status <task>
+
+        Options:
+          -h, --help     show this help message and exit
+        """
+        response = self.module_display("RunningTasks", "3.4.1", type="backupTasksLogs", name="Volume Replication", tasktype="VREP")
+        self.br.open("%s/status.php?status=running_tasks_info&opt_param=RunningTasks3.4.1_%s" % (self.server, task_name))
+        self.soup = BeautifulSoup.BeautifulSoup(self.br.response().read())
+        self.soup = BeautifulSoup.BeautifulSoup(HTMLParser.HTMLParser().unescape(self.soup.status.data.getText()))
+        keys = list()
+        vals = list()
+        for item in self.soup.findAll("div", {"class": "txtArea"}):
+            keys.append(item.getText())
+
+        for item in self.soup.findAll("div", {"class": "inputArea"}):
+            vals.append(item.getText())
+
+        for i in range(0, len(keys)):
+            print "%-25s %s" % (keys[i], vals[i])
+
+
     def failover_task(self, task, state):
         r"""Manage a failover task
         Usage: failover_task <task> <state>
@@ -498,7 +521,7 @@ class DSS_Scraper():
         Usage: nas_share_toggle_smb <share> <state>
 
         This function enables or disables SMB support for a given <share>.
-        <state> needs to be either "enabled" or "disable".
+        <state> needs to be either "enabled" or "disabled".
 
         Optons:
           -h, --help          show this help message and exit
@@ -541,14 +564,14 @@ class DSS_Scraper():
             else:
                 cm = False
             return self.volume_replication_mode(args[1], args[2], clear_metadata=cm)
-        elif cmd in allowed_cmds:
-                getattr(self, cmd)(*args)
+        elif cmd in self.allowed_cmds:
+                getattr(self, cmd)(*args[1:])
         else:
             raise ValueError("Unknown function called.")
 
 
 def test():
-    server = "https://172.16.10.68"
+    server = "https://192.168.220.1"
     password = "admin"
 
     filer1 = DSS_Scraper(server, password, debug = True)
