@@ -316,7 +316,9 @@ class DSS_Scraper():
         tasks = list()
         for elem in self.soup.findAll('td', {"class": "trow"}):
             if elem.span != None:
-                tasks.append(elem.getText())
+                for attr in elem.span.attrs:
+                    if attr[0] == "title":
+                        tasks.append(attr[1])
         if task_name not in tasks or task_name == "failover_data":
             raise ValueError("Invalid task name given.")
         if action not in ("start", "stop", "remove"):
@@ -571,11 +573,12 @@ class DSS_Scraper():
 
 
 def test():
-    server = "https://192.168.220.1"
+    server = "https://172.16.10.68"
     password = "admin"
 
     filer1 = DSS_Scraper(server, password, debug = True)
     filer1.login()
+    filer1.volume_replication_task_status("replication_nas_user_home")
     filer1.logout()
 
 if __name__ == "__main__":

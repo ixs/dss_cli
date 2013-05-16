@@ -88,9 +88,13 @@ $ ./dss_cli filer1 volume_replication add lvarc_vol_00000
 
 $ ./dss_cli filer2 volume_replication add lvarc_vol_00000
 
-$ ./dss_cli filer1 volume_replication_task_create lvarc_vol_00000 lvarc_vol_00000 failover_iscsi_phoenix
+$ ./dss_cli filer2 volume_replication_mode lvarc_vol_00000 secondary
+
+$ ./dss_cli filer1 volume_replication_task_create lvarc_vol_00000 lvarc_vol_00000 failover_iscsi_phoenix 80
 
 $ ./dss_cli filer1 task --start VREP failover_iscsi_phoenix
+
+$ ./dss_cli filer1 volume_replication_task_status failover_iscsi_phoenix
 
 $ ./dss_cli filer1 iscsi_target_create phoenix
 
