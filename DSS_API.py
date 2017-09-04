@@ -21,7 +21,7 @@ import pprint
 import sys
 import paramiko
 
-class DSS_API():
+class DSS_API:
     def __init__(self, server, keyfile, username = "api", password = None, port = 22223, debug = False):
         self.client = paramiko.SSHClient()
         if debug == True:
@@ -39,7 +39,7 @@ class DSS_API():
         stderr = stderr.read()
         self.client.close()
         if len(stderr) > 0:
-          raise RuntimeError(stderr)
+          raise RuntimeError(stderr[:-1])
         return stdout[:-1]
 
     def get_cmds(self):
