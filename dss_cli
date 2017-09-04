@@ -24,9 +24,10 @@ import sys
 import DSS_Scraper
 import DSS_API
 
-class dss_cli():
+class dss_cli:
     def __init__(self):
         self.servers = dict()
+        self.groups = dict()
         self.debug = False
         self.read_config()
 
@@ -41,20 +42,8 @@ class dss_cli():
             self.servers[server] = dict()
             for option in config.options(server):
                 self.servers[server][option] = config.get(server, option)
-        # FIXME, failovergroup needed for convenience functions.
-        r"""for group in config.options("failovergroups"):
-            self.servers[group] = dict()
-            for server in config.get("failovergroups", group).split():
-                self.servers[group]["name"] = group
-                self.servers[group][server] = dict()
-                self.servers[group][server]["name"] = server
-                for option in config.options(server):
-                    self.servers[group][server][option] = config.get(server, option)
-                    if option == "mode":
-                        if config.get(server, option) == "primary":
-                            self.servers[group]["primary"] = server
-                        elif config.get(server, option) == "secondary":
-                            self.servers[group]["secondary"] = server"""
+        for group in config.options("failovergroups"):
+            self.groups[group] = config.get("failovergroups", group).split()
 
     def register_commands(self, server):
         server = self.servers[server]
@@ -95,39 +84,41 @@ class dss_cli():
                 server = self.servers[server]
                 dss_web = DSS_Scraper.DSS_Scraper("https://%s" % (server["address"]), server["password"], debug=self.debug)
                 dss_web.login()
-                dss_web.web_exec(args)
+                try:
+                  dss_web.web_exec(args)
+                except TypeError:
+                  print dss_web.get_cmd_help(cmd)
                 dss_web.logout()
                 sys.exit(0)            
 
 def main():
     # Read cmdline
-    usage = "usage: %prog [options] <host> <command>"
+    usage = "usage: %prog [options] <host|group> <command>"
     description = "Command Line Interface to interact with an Open-E DSS Storage Server"
     epilog = "Use --list to get a list of all supported commands. Each command should support the --help parameter to get a list of accepted arguments."
     parser = optparse.OptionParser(usage = usage, description = description, epilog = epilog, add_help_option = True)
     parser.disable_interspersed_args()
     parser.add_option("-f", "--file", dest="config_file", help="Configuration file to use", metavar = "FILE", default = "config.ini")
     parser.add_option("-l", "--list", action="store_true", help="List all commands available", dest = "list", default = False)
-    # parser.add_option("-g", "--failovergroup", action="store_true", help="List all configured failover groups", dest="group")
+    parser.add_option("-g", "--failovergroup", action="store_true", help="List all configured failover groups", dest="group")
     # parser.add_option("-v", "--verbose", action="store_const", const=1, dest="verbose")
     parser.add_option("-d", "--debug", action="store_true", dest="debug", default=False)
     (options, args) = parser.parse_args()
 
     cli = dss_cli()
-    cli.read_config(options.config_file)
 
 #    if options.group == True:
 
     if options.debug:
         cli.debug = True
 
-    if False: # Disabled for now
+    if options.group:
         strfmt = "%-15s %-15s %-15s"
         print "Configured failover groups:\n"
         print strfmt % ("Group name", "Primary Host", "Secondary Host")
         print "=" * 47
-        for group in cli.servers:
-            print strfmt % (group, cli.servers[group]["primary"], cli.servers[group]["secondary"])
+        for group in cli.groups:
+            print strfmt % (group, cli.groups[group][0], cli.groups[group][1])
         sys.exit(0)
     elif options.list == True:
         if len(args) == 0:
