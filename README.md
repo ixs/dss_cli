@@ -4,6 +4,8 @@ dss_cli
 Command line interface for the Open-E Data Storage Server using both the SSH
 API as well as Webscraping
 
+Currently only DSS6 is supported for webscraping. DSS7 is under development.
+SSH API use is supported for both DSS6 and DSS7.
 
 Audience
 ========
@@ -38,6 +40,9 @@ for automation/scripting:
    * failover_task - Manage failover tasks/volumes. All replicated volumes
      on a DSS filer are available for failover services on a virtual IP but
      need to be enabled. This function allows to do this.
+
+   * failover_safe - Query the filer if all disks are synced and it is safe
+     to failover from active to the passive cluster member.
 
    * iscsi_target_access - Configure IP Access rules for iSCSI targets.
 

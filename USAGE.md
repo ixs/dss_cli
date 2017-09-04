@@ -13,6 +13,7 @@ create_iscsilv            - Creates a logical iSCSI Volume.
 create_naslv              - Creates a logical NAS volume.
 date                      - Sets time and date; please use the following format: yyyy-mm-dd hh:mm:ss
 failover                  - This function allows you to stop, run or change the operation mode for the given server.
+failover_safe             - Inquire if we are safe for failover/failback
 failover_task             - Manage a failover task
 get_TXbytes               - Returns total number of bytes transmitted for the given interface.
 get_TXpackets             - Returns total number of packets transmitted for the given interface.
