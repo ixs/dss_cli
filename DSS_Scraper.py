@@ -30,7 +30,7 @@ import mechanize
 import cookielib
 import BeautifulSoup
 
-class DSS_Scraper():
+class DSS_Scraper:
 
     def __init__(self, server, password, debug = False):
         r"""Initiate defaults"""
@@ -38,7 +38,8 @@ class DSS_Scraper():
         self.password = password
         self.debug = debug
         self.allowed_cmds = [ "volume_replication_remove", "volume_replication_mode", "volume_replication_task_create", "iscsi_target_access", "iscsi_target_remove",
-                "failover_task", "nas_share_toggle_smb", "volume_replication_task_stop", "volume_replication_task_remove", "volume_replication_task_status", "lv_remove"]
+                "failover_task", "nas_share_toggle_smb", "volume_replication_task_stop", "volume_replication_task_remove", "volume_replication_task_status", "lv_remove",
+                "failover_safe"]
 
         # Logging
         if debug == True:
@@ -402,13 +403,7 @@ class DSS_Scraper():
         """
         self.volume_replication_task_action(task_name, "remove")
 
-    def volume_replication_task_status(self, task_name):
-        r"""Status of a replication task
-        Usage: volume_replication_task_status <task>
-
-        Options:
-          -h, --help     show this help message and exit
-        """
+    def get_volume_replication_state(self, task_name):
         response = self.module_display("RunningTasks", "3.4.1", type="backupTasksLogs", name="Volume Replication", tasktype="VREP")
         self.br.open("%s/status.php?status=running_tasks_info&opt_param=RunningTasks3.4.1_%s" % (self.server, task_name))
         self.soup = BeautifulSoup.BeautifulSoup(self.br.response().read())
@@ -421,9 +416,18 @@ class DSS_Scraper():
         for item in self.soup.findAll("div", {"class": "inputArea"}):
             vals.append(item.getText())
 
+        return (keys, vals)
+
+    def volume_replication_task_status(self, task_name):
+        r"""Status of a replication task
+        Usage: volume_replication_task_status <task>
+
+        Options:
+          -h, --help     show this help message and exit
+        """
+        keys, vals = self.get_volume_replication_state(task_name)
         for i in range(0, len(keys)):
             print "%-25s %s" % (keys[i], vals[i])
-
 
     def failover_task(self, task, state):
         r"""Manage a failover task
@@ -472,6 +476,51 @@ class DSS_Scraper():
         self.br.form["selected_tasks"] = ";".join(current_tasks)
         self.br.form.new_control("hidden", "run_engine", { "value": "true"})
         self.br.submit()
+        # Check if we have an error message from the server.
+        self.soup = BeautifulSoup.BeautifulSoup(self.br.response().read())
+        try:
+            raise SystemError(self.soup.find("div", { "class": "messageBody" }).getText())
+        except AttributeError:
+            pass
+
+    def failover_safe(self):
+        r"""Inquire if we are safe for failover/failback
+        Usage: failover_safe
+
+        This function allows you to check if all volumes are correctly synced before failing
+        back to the other node.
+
+        Optons:
+          -h, --help          show this help message and exit
+        """
+
+        # Build a list of Replication tasks
+        response = self.module_display("ReplicationTasksManager", "1.5.2")
+        self.soup = BeautifulSoup.BeautifulSoup(response)
+        tasks = list()
+        for elem in self.soup.findAll('td', {"class": "trow"}):
+            if elem.span != None:
+                for attr in elem.span.attrs:
+                    if attr[0] == "title":
+                        tasks.append(attr[1])
+        try:
+            del tasks[tasks.index("failover_data")]
+        except ValueError:
+            pass
+        safe = True
+        for task in tasks:
+            keys, vals = self.get_volume_replication_state(task)
+            if "Inconsistent" in vals:
+                #raise SystemError("Inconsistent replication found in %s" % (task,))
+                print "NOT ready for failover. Inconsistent replication found in %s" % (task,)
+                safe = False
+            elif vals.count("Consistent") != 2:
+                print "NOT ready for failover. Both sides not consistent in task %s" % (task,)
+                safe = False
+        if safe is True:
+                print "Ready for failover. All replication data is consistent."
+
+
 
 
     def iscsi_target_access(self, target, allow = [], deny = []):
@@ -578,7 +627,7 @@ def test():
 
     filer1 = DSS_Scraper(server, password, debug = True)
     filer1.login()
-    filer1.volume_replication_task_status("replication_nas_user_home")
+    filer1.failover_safe()
     filer1.logout()
 
 if __name__ == "__main__":
